@@ -1,0 +1,97 @@
+///////////////////////Agent////////////////////////////////////
+
+class agent extends uvm_agent;
+`uvm_component_utils(agent)
+ 
+function new(input string inst = "AGENT", uvm_component c);
+super.new(inst,c);
+endfunction
+ 
+monitor m;
+driver d;
+uvm_sequencer #(transaction) seq;
+ 
+ 
+virtual function void build_phase(uvm_phase phase);
+super.build_phase(phase);
+m = monitor::type_id::create("MON",this);
+d = driver::type_id::create("DRV",this);
+seq = uvm_sequencer #(transaction)::type_id::create("SEQ",this);
+endfunction
+ 
+virtual function void connect_phase(uvm_phase phase);
+super.connect_phase(phase);
+d.seq_item_port.connect(seq.seq_item_export);
+endfunction
+endclass
+//////////////////////////env////////////////////////////////////// 
+ 
+class env extends uvm_env;
+`uvm_component_utils(env)
+ 
+function new(input string inst = "ENV", uvm_component c);
+super.new(inst,c);
+endfunction
+ 
+scoreboard s;
+agent a;
+ 
+virtual function void build_phase(uvm_phase phase);
+super.build_phase(phase);
+a = agent::type_id::create("AGENT",this);
+s = scoreboard::type_id::create("SCO",this);
+endfunction
+ 
+ 
+virtual function void connect_phase(uvm_phase phase);
+super.connect_phase(phase);
+a.m.send.connect(s.recv);
+endfunction
+endclass
+//////////////////////////////Test////////////////////////////// 
+ 
+class test extends uvm_test;
+`uvm_component_utils(test)
+ 
+function new(input string inst = "TEST", uvm_component c);
+super.new(inst,c);
+endfunction
+ 
+generator gen;
+env e;
+ 
+virtual function void build_phase(uvm_phase phase);
+super.build_phase(phase);
+e = env::type_id::create("ENV",this);
+gen = generator::type_id::create("GEN",this);
+endfunction
+ 
+virtual task run_phase(uvm_phase phase);
+phase.raise_objection(this);
+gen.start(e.a.seq);
+phase.drop_objection(this);
+endtask
+endclass
+//////////////////////Testbench//////////////////////////////////// 
+ 
+module mealy_tb;
+test t;
+mealy_if mif();
+ 
+  mealy_zero_dectector dut (.clock(mif.clock), .x_in(mif.x_in), .reset(mif.reset), .y_out(mif.y_out));
+ 
+initial begin
+mif.clock = 0;
+end
+ 
+always#10 mif.clock = ~mif.clock;
+ 
+initial begin
+$dumpfile("dump.vcd");
+$dumpvars; 
+t = new("TEST", null);
+  uvm_config_db #(virtual mealy_if)::set(null, "*", "mif", mif);
+run_test();
+end
+ 
+endmodule
