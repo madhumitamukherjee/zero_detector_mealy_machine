@@ -1,1 +1,1 @@
-# This is the code of Mealy Type FSM for Zero crossing detector. 
+# This is the code of mealy type FSM for zero crossing detector. 
