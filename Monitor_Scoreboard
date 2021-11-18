@@ -1,0 +1,81 @@
+//////////////////Monitor////////////////////////////////////// 
+class monitor extends uvm_monitor;
+`uvm_component_utils(monitor)
+ 
+uvm_analysis_port #(transaction) send;
+virtual mealy_if mif;
+transaction t;
+ 
+function new(input string inst = "MON", uvm_component c);
+super.new(inst,c);
+send = new("WRITE",this);
+endfunction
+ 
+virtual function void build_phase(uvm_phase phase);
+super.build_phase(phase);
+t = transaction::type_id::create("TRANS");
+if(!uvm_config_db#(virtual mealy_if)::get(this,"","mif",mif))
+`uvm_info("MON", "Unable to access Interface", UVM_NONE);
+endfunction
+ 
+virtual task run_phase(uvm_phase phase);
+forever begin
+  @(posedge mif.clock);  
+t.x_in = mif.x_in;
+t.reset = mif.reset;
+  
+  if(mif.reset == 1'b1) begin
+    @(posedge mif.clock)
+    t.y_out = mif.y_out;
+end     
+  
+`uvm_info("MON","Send data to Scoreboard", UVM_NONE);
+t.print(uvm_default_line_printer);
+send.write(t);
+ 
+end
+endtask
+ 
+endclass
+//////////////////////////Scoreboard//////////////////////////// 
+class scoreboard extends uvm_scoreboard;
+`uvm_component_utils(scoreboard)
+ 
+uvm_analysis_imp #(transaction,scoreboard) recv;
+transaction data;
+ 
+function new(input string inst = "SCO", uvm_component c);
+super.new(inst,c);
+recv = new("READ",this);
+endfunction
+  
+  virtual function void write(transaction t);
+data = t;
+`uvm_info("SCO","Data rcvd from Monitor", UVM_NONE);
+data.print(uvm_default_line_printer);                        
+  
+  if(data.reset == 1'b0)
+    begin
+      if(data.y_out==1'b0)
+        `uvm_info("SCO","Test Passed", UVM_NONE)
+      else
+        `uvm_info("SCO","Test Failed", UVM_NONE);
+    end
+  
+  else if (data.reset == 1'b1 && data.x_in==1'b0)
+    begin
+      if(data.y_out==1'b1)
+        `uvm_info("SCO","Test Passed", UVM_NONE)
+      else
+        `uvm_info("SCO","Test Failed", UVM_NONE);
+    end
+        
+  else if (data.reset == 1'b1 && data.x_in==1'b1)
+    begin
+      if(data.y_out==1'b0)
+        `uvm_info("SCO","Test Passed", UVM_NONE)
+      else
+        `uvm_info("SCO","Test Failed", UVM_NONE);
+    end
+endfunction
+endclass
