@@ -1,0 +1,77 @@
+`include "uvm_macros.svh"
+import uvm_pkg::*;
+
+///////////////////////Transaction////////////////////////////////// 
+class transaction extends uvm_sequence_item;
+rand bit x_in;
+rand bit reset;
+bit y_out;
+  
+function new(input string inst = "TRANS");
+super.new(inst);
+endfunction
+ 
+`uvm_object_utils_begin(transaction)
+`uvm_field_int(x_in,UVM_DEFAULT)
+`uvm_field_int(reset,UVM_DEFAULT)
+`uvm_field_int(y_out,UVM_DEFAULT)
+`uvm_object_utils_end
+ 
+endclass
+//////////////////////////////Generator///////////////////////////// 
+class generator extends uvm_sequence#(transaction);
+`uvm_object_utils(generator)
+ 
+transaction t;
+integer i;
+ 
+function new(input string inst = "GEN");
+super.new(inst);
+endfunction
+ 
+virtual task body();
+t = transaction::type_id::create("TRANS");
+  for(i =0; i< 50; i++) begin
+start_item(t);
+t.randomize();
+`uvm_info("GEN", "Data send to Driver", UVM_NONE);
+t.print(uvm_default_line_printer);
+finish_item(t);
+#20;
+end
+endtask
+endclass
+///////////////////////////////Driver/////////////////////////// 
+class driver extends uvm_driver#(transaction);
+`uvm_component_utils(driver)
+ 
+transaction t;
+virtual mealy_if mif;
+ 
+function new(input string inst = "DRV", uvm_component c);
+super.new(inst,c);
+endfunction
+ 
+virtual function void build_phase(uvm_phase phase);
+super.build_phase(phase);
+t = transaction::type_id::create("TRANS");
+if(!uvm_config_db#(virtual mealy_if)::get(this,"","mif",mif))
+  `uvm_info("DRV","Unable to access Interface",UVM_NONE);
+endfunction
+ 
+virtual task run_phase(uvm_phase phase);
+forever begin
+seq_item_port.get_next_item(t);
+mif.x_in = t.x_in;
+mif.reset = t.reset;
+`uvm_info("DRV","Send data to DUT", UVM_NONE);
+t.print(uvm_default_line_printer);
+seq_item_port.item_done();
+  @(posedge mif.clock);
+ 
+  if(t.reset == 1'b0)
+    @(posedge mif.clock);
+end
+endtask
+ 
+endclass
